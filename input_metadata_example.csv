@@ -1,0 +1,7 @@
+name,type,group,batch
+SampleB3,sample,infected,A
+Blank_reg,blank,NA,B 
+SampleB4,sample,uninfected,B
+SampleB5,sample,uninfected,B
+SampleB2,sample,infected,A
+SampleB1,sample,infected,A
