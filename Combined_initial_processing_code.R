@@ -2,13 +2,13 @@
 feat<-read.csv("quant.csv") #add in your quantfile name
 mz_tol<-0.001
 rt_tol<-0.2 #set to what you used in MZMine
-oversplit_num<-5 #lower if you want more removed
+oversplit_num<-6 #lower if you want more removed
 
 #you dont have to change anything until line 35
 feat$row.m.z<-round(feat$row.m.z, 4) 
 feat$row.retention.time<-round(feat$row.retention.time, 2) 
 mz_table<-as.data.frame(  table(feat$row.m.z)  )
-potential_oversplits<-mz_table[mz_table$Freq > oversplit_num,]
+potential_oversplits<-mz_table[mz_table$Freq >= oversplit_num,]
 potential_mz_forremov<-as.vector(potential_oversplits$Var1)
 #these lines ID the potential oversplit MZs and saves them into the "potential_mz_forremov" vector. 
 #If an MZ repeats more than the "oversplit num" set above, it gets saved into the vector
@@ -69,7 +69,7 @@ print(min(colSums(norm_table[, -(1:3)]))) #should be 1 or theres a problem
 
 write.csv(norm_table, "quant_norm.csv", row.names = FALSE) #name what you want but keep .csv
 # QIIME FORMATTING --------------------------------------------------------
-table<-read.csv("quant.csv")
+table<-read.csv("quant_3blankremoved_norm.csv")
 
 #formatting. dont change things til like 94
 table$row.m.z<-round(table$row.m.z, 4) 
@@ -88,12 +88,16 @@ trans<-cbind(row.names(trans), trans)
 colnames(trans)<-trans[1,]
 trans<-trans[-1,]
 trans[is.na(trans)] <- 0     #this replaces any "NA" output with zero 
-trans <- trans[rownames(trans) != "X|X.", ]
+trans <- trans[rownames(trans) != "X", ]
 #removes .mzML Peak Area from file name, removes old feature columns, adds in mz_RT_CI format for feature, transposes
 
 write.table(trans, "FeatureTable_QiimeFormat.txt", row.names = FALSE, sep = "\t", na="") #make sure its .txt. NOT .csv
+
+#if you want a csv copy:
+write.csv(trans, "FeatureTable_QiimeFormat.csv", row.names = FALSE, na="")
+
 # QIIME FORMAT CHECKING ---------------------------------------------------
-meta<-read.csv("metadata.csv") #input metadata .csv
+meta<-read.csv("demo_metadata.csv") #input metadata .csv
 trans<-read.table("FeatureTable_QiimeFormat.txt", sep="\t", header = TRUE) #from previous step
 
 ##part 1##
@@ -151,8 +155,11 @@ length(dfsums$V1[dfsums$rowsums == 0])
 
 #export. keep the .txt
 write.table(featlist_filtered, "correctedfeatlist.txt", row.names = FALSE, sep = "\t", na="")
-write.table(metadata_filtered, "correctedmetadata.txt", row.names = FALSE, sep = "\t", na="")
+write.table(metadata_filtered, "correctedmetadata.txt", row.names = FALSE, sep = "\t", na="NA")
 
+#if you want a .csv file
+write.csv(featlist_filtered, "correctedfeatlist.csv", row.names = FALSE, na="")
+write.csv(metadata_filtered, "correctedmetadata.csv", row.names = FALSE, na="NA")
 
 # QIIME SUBSETTING --------------------------------------------------------
 
@@ -185,8 +192,8 @@ write.csv(metadata_filtered, "subset_metadata.csv", row.names = FALSE)
 # METADATA MERGING --------------------------------------------------------
 
 #read in files from format checking step for this to work
-metadata<-read.table("metadata.txt", sep="\t", header = TRUE)
-featureTable<-read.table("featlist.txt", sep="\t", header = TRUE)
+metadata<-read.table("correctedmetadata.txt", sep="\t", header = TRUE)
+featureTable<-read.table("correctedfeatlist.txt", sep="\t", header = TRUE)
 
 merged_data <- merge(metadata, featureTable, by="sampleid", all=TRUE)
 
