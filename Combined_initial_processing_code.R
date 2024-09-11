@@ -1,10 +1,10 @@
 # OVERSPLIT REMOVAL -------------------------------------------------------
-feat<-read.csv("quant.csv") #add in your quantfile name
-mz_tol<-0.001
-rt_tol<-0.2 #set to what you used in MZMine
-oversplit_num<-6 #lower if you want more removed
+feat<-read.csv("INPUT_quant.csv") #add in your quantfile name
+mz_tol<-0.0005
+rt_tol<-0.25 #set to what you used in MZMine (at least can do 2-3x more)
+oversplit_num<-4 #lower if you want more removed
 
-#you dont have to change anything until line 35
+#run as-is til line 35
 feat$row.m.z<-round(feat$row.m.z, 4) 
 feat$row.retention.time<-round(feat$row.retention.time, 2) 
 mz_table<-as.data.frame(  table(feat$row.m.z)  )
@@ -23,7 +23,6 @@ for (i in 1:length(potential_mz_forremov)) {
 CIs_to_drop<-unique(CIs_to_drop)
 cleaned_data<- subset(feat, !(row.ID %in% CIs_to_drop))
 cleaned_data <- cleaned_data[, names(cleaned_data) != "X"]
-
 #explaination of the nested-for-loop:The outer loop subsets the dataset with just a "potential mz for oversplit" value +/- the mz tolerance
 #the subsetted dataset is sorted from low to high by RT value
 #the inner loop finds the difference between each RT value, if the difference between the two is less than the "rt_tol" set above, the feature CI is saved in the "CIs to drop" vector
@@ -32,16 +31,16 @@ cleaned_data <- cleaned_data[, names(cleaned_data) != "X"]
 
 #data output line. put whatever name you want in
 length(CIs_to_drop) #how many values are removed
-write.csv(cleaned_data, "OSremoved_quant.csv", row.names = FALSE) #make sure to keep .csv at end
+write.csv(cleaned_data, "OUTPUT_quant_OSremoved.csv", row.names = FALSE) #make sure to keep .csv at end
 
-# BLANK REMOVAL -----------------------------------------------------------
-tab<-read.csv("quant.csv", header=TRUE) 
-l<-3 #degree of removal wanted
+# BLANK REMOVAL, by fold changes -----------------------------------------------------------
+tab<-read.csv("INPUT_quant.csv", header=TRUE) 
+l<-10 #degree of removal wanted
 blanknames<-"blank|Blank|BLANK|bnk|BNK" #Change depending on your blank names. Case sensitive
 
 print(names(tab)[grep(blanknames, colnames(tab))]) #test to make sure your blanks are IDed
 
-#dont change anything til line 58
+#dont change anything til line 57
 tab <- tab[, names(tab) != "X"]
 fcount <- c()
 for(i in 1:nrow(tab)) {
@@ -55,10 +54,10 @@ for(i in 1:nrow(tab)) {
 num_removed<-nrow(tab)-nrow(tab[-which(fcount==0),])
 
 cat("number of features removed:", num_removed, "\n") #prints how many are removed
-write.csv(tab[-which(fcount==0),], "quant_blankremoved.csv", row.names=FALSE) #change name to what you want but keep the .csv
+write.csv(tab[-which(fcount==0),], "OUTPUT_quant_blankremoved", row.names=FALSE) #change name to what you want but keep the .csv
 
 # TIC NORM ----------------------------------------------------------------
-table<-read.csv("quant.csv")
+table<-read.csv("INPUT_quant.csv")
 
 norm_table<- apply(table[, -(1:3)], 2, function(x) x / sum(x) )
 norm_table<-cbind(table[,1:3], norm_table)
@@ -67,11 +66,11 @@ norm_table <- norm_table[, names(norm_table) != "X"]
 print(sum(is.na(norm_table))) # checks that no NA values popped up
 print(min(colSums(norm_table[, -(1:3)]))) #should be 1 or theres a problem
 
-write.csv(norm_table, "quant_norm.csv", row.names = FALSE) #name what you want but keep .csv
+write.csv(norm_table, "OUTPUT_quant_norm.csv", row.names = FALSE) #name what you want but keep .csv
 # QIIME FORMATTING --------------------------------------------------------
-table<-read.csv("quant_3blankremoved_norm.csv")
+table<-read.csv("input_quant.csv")
 
-#formatting. dont change things til like 94
+#formatting. dont change things til line 93
 table$row.m.z<-round(table$row.m.z, 4) 
 table$row.retention.time<-round(table$row.retention.time, 2) 
 sampleid <-numeric()
@@ -91,14 +90,14 @@ trans[is.na(trans)] <- 0     #this replaces any "NA" output with zero
 trans <- trans[rownames(trans) != "X", ]
 #removes .mzML Peak Area from file name, removes old feature columns, adds in mz_RT_CI format for feature, transposes
 
-write.table(trans, "FeatureTable_QiimeFormat.txt", row.names = FALSE, sep = "\t", na="") #make sure its .txt. NOT .csv
+write.table(trans, "OUTPUT_Qiimeformatquant.txt", row.names = FALSE, sep = "\t", na="") #make sure its .txt. NOT .csv
 
 #if you want a csv copy:
-write.csv(trans, "FeatureTable_QiimeFormat.csv", row.names = FALSE, na="")
+write.csv(trans, "OUTPUT_Qiimeformatquant.csv", row.names = FALSE, na="")
 
 # QIIME FORMAT CHECKING ---------------------------------------------------
-meta<-read.csv("demo_metadata.csv") #input metadata .csv
-trans<-read.table("FeatureTable_QiimeFormat.txt", sep="\t", header = TRUE) #from previous step
+meta<-read.csv("metadata.csv") #input metadata .csv
+trans<-read.table("Qiimeformat_quant.txt", sep="\t", header = TRUE) #from previous step
 
 ##part 1##
 names(meta)[1] <- "sampleid"
@@ -147,15 +146,40 @@ samp_to_remov<- dfsums$V1[dfsums$rowsums == 0]
 featlist_filtered<- trans[!(dftrans$sampleid %in% samp_to_remov), ]
 metadata_filtered<- meta[!(meta$sampleid %in% samp_to_remov), ]
 
-##part 6##
+##part 5.5##
 #this checks the previous cell. it will print the sample names that have been removed(it will likely be blanks)
 #Then the length() function tells you how many.
 dfsums$V1[dfsums$rowsums == 0]
 length(dfsums$V1[dfsums$rowsums == 0])
 
+##part 6##
+#checks there is no N/A or blank values in your files. Open and edit if there are
+# Check for "N/A" values in metadata
+any_blank_meta <- any(metadata_filtered[!is.na(metadata_filtered)] == "")
+any_na_FT <- any(is.na(featlist_filtered))
+any_na_meta <- any(metadata_filtered == "N/A", na.rm = TRUE)
+
+if (any_na_meta) { 
+  print("Oh No! There are 'N/A' values in the metadata")} else { 
+  print("No 'N/A' cells in metadata :)")}
+
+if (any_blank_meta) { 
+  print("Oh No! There are blank values in the metadata")} else { 
+  print("No empty cells in metadata :)")}
+
+if (any_na_FT) { 
+  print("Oh No! There are NA values in the feature table")} else { 
+  print("All good in FeatTable :)")}
+# Note: "NA" in the dataset is fine for QIIME. But "N/A" or blank cells will cause the job to fail.
+
+##Part 6.5## 
+#run only if you had errors with the metadata in part 7. replaces the empty cells or N/A with "NA"
+#if you have an error with the feature table.. go back and see where the NAs appeared
+metadata_filtered[metadata_filtered == "" | metadata_filtered == "N/A"] <- "NA"
+
 #export. keep the .txt
-write.table(featlist_filtered, "correctedfeatlist.txt", row.names = FALSE, sep = "\t", na="")
-write.table(metadata_filtered, "correctedmetadata.txt", row.names = FALSE, sep = "\t", na="NA")
+write.table(featlist_filtered, "CorrectedFeattable.txt", row.names = FALSE, sep = "\t", na="")
+write.table(metadata_filtered, "CorrectMetadata.txt", row.names = FALSE, sep = "\t", na="NA")
 
 #if you want a .csv file
 write.csv(featlist_filtered, "correctedfeatlist.csv", row.names = FALSE, na="")
@@ -202,7 +226,7 @@ write.csv(merged_data, "mergeddata.csv", row.names = FALSE, na="NA")
 # GNPS FORMAT OUTPUT ------------------------------------------------------
 
 metadata<-read.csv("metadata.csv", header = TRUE) #orginal .csv metadata, not qiime format
-featureTable<-read.csv("quant.csv", header=TRUE)
+featureTable<-read.csv("quant.csv", header=TRUE) #MZmine quant table format
 
 #correcting metadata
 add_cor_names <- function(df) {
@@ -219,5 +243,9 @@ names(featureTable)[2]<-"row m/z"
 names(featureTable)[3]<- "row retention time"
 names(featureTable)<-gsub(".mzML.Peak.area",".mzML Peak area", names(featureTable)) #potentially need to change to .mzXML                                                                    
 
-write.csv(featureTable, "GNPSfeattable.csv", row.names = FALSE)
-write.table(metadata_cor, "GNPSmetadata.txt", row.names = FALSE, sep = "\t", na="")
+write.csv(featureTable, "GNPSquanttable.csv", row.names = FALSE)
+write.table(metadata_cor, "GNPS_Metadata.txt", row.names = FALSE, sep = "\t", na="")
+
+
+
+
